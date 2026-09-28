@@ -1,0 +1,262 @@
+name: java-dev-env
+
+services:
+  # 1. 自定义 JRebel License Server（构建上下文在 dev-jrebel/）
+  jrebel:
+    build:
+      context: ./dev-jrebel
+    image: dev-jrebel:latest
+    container_name: dev-jrebelServer
+    ports:
+      - "10082:8081"
+    restart: always
+
+  # 2. Redis 7
+  redis:
+    image: redis:latest
+    container_name: dev-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./dev-redis/data:/data
+      - ./dev-redis/conf:/usr/local/etc/redis
+      - ./dev-redis/logs:/var/log/redis
+    command: >
+      sh -c "
+      CONF_FILE=/usr/local/etc/redis/redis.conf;
+      if [ ! -f \"$$CONF_FILE\" ]; then
+        echo '正在生成全量默认配置...' >&2;
+        {
+          echo '# 基础网络配置';
+          echo 'bind 0.0.0.0';
+          echo 'protected-mode no';
+          echo 'port 6379';
+          echo 'tcp-keepalive 300';
+          echo '';
+          echo '# 通用配置';
+          echo 'daemonize no';
+          echo 'loglevel notice';
+          echo 'logfile /var/log/redis/redis.log';
+          echo 'databases 16';
+          echo '';
+          echo '# 快照持久化 (RDB)';
+          echo 'save 900 1';
+          echo 'save 300 10';
+          echo 'save 60 10000';
+          echo '';
+          echo '# AOF 持久化 (建议开启)';
+          echo 'appendonly yes';
+          echo 'appendfilename \"appendonly.aof\"';
+          echo 'appendfsync everysec';
+          echo '';
+          echo '# 内存管理';
+          echo 'maxmemory 512mb';
+          echo 'maxmemory-policy allkeys-lru';
+          echo '';
+          echo '# 慢查询日志';
+          echo 'slowlog-log-slower-than 10000';
+          echo 'slowlog-max-len 128';
+          echo '';
+          echo '# 访问密码';
+          echo 'requirepass 123456';
+        } > \"$$CONF_FILE\";
+      fi;
+      redis-server \"$$CONF_FILE\"
+      "
+    restart: always
+
+  # 3. MySQL 9
+  mysql:
+    image: mysql:9
+    container_name: dev-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ruoyi
+      MYSQL_DATABASE: dev_db
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./dev-mysql/data:/var/lib/mysql
+      - ./dev-mysql/logs:/var/log/mysql
+    restart: always
+
+  # 4. Elasticsearch 7.17.3（基础镜像 + 挂载插件目录；当前未内置 IK）
+  elasticsearch7:
+    image: elasticsearch:7.17.3
+    container_name: dev-es7
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./dev-elasticsearch7/data:/usr/share/elasticsearch/data
+      - ./dev-elasticsearch7/plugins:/usr/share/elasticsearch/plugins
+      - ./dev-elasticsearch7/logs:/usr/share/elasticsearch/logs
+    restart: always
+
+  # 5. Elasticsearch 8.17.3（已内置 IK 分词，插件解压在 dev-elasticsearch8/plugins/analysis-ik）
+  elasticsearch8:
+    image: elasticsearch:8.17.3
+    container_name: dev-es8
+    ports:
+      - "9201:9200"
+      - "9301:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./dev-elasticsearch8/data:/usr/share/elasticsearch/data
+      - ./dev-elasticsearch8/plugins:/usr/share/elasticsearch/plugins
+      - ./dev-elasticsearch8/logs:/usr/share/elasticsearch/logs
+    restart: always
+
+  # 6. Elasticsearch 9.2.0（已内置 IK 分词，插件解压在 dev-elasticsearch9/plugins/analysis-ik）
+  elasticsearch9:
+    image: elasticsearch:9.2.0
+    container_name: dev-es9
+    ports:
+      - "9202:9200"
+      - "9302:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./dev-elasticsearch9/data:/usr/share/elasticsearch/data
+      - ./dev-elasticsearch9/plugins:/usr/share/elasticsearch/plugins
+      - ./dev-elasticsearch9/logs:/usr/share/elasticsearch/logs
+    restart: always
+
+  # 7. Nginx
+  nginx:
+    image: nginx:latest
+    container_name: dev-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+      - "81:81"
+    volumes:
+      - ./dev-nginx/conf/nginx.conf:/etc/nginx/nginx.conf
+      - ./dev-nginx/conf/conf.d:/etc/nginx/conf.d
+      - ./dev-nginx/data:/data
+      - ./dev-nginx/logs:/var/log/nginx
+    restart: always
+
+  it-tools:
+    image: "qingfeng2336/it-tools:latest"
+    restart: always
+    ports:
+      - "10081:80"
+    environment:
+      - TZ=Asia/Shanghai
+    container_name: it-tools-cn
+
+  # 8. RabbitMQ（带 management 管理界面）
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: dev-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./dev-rabbitmq/data:/var/lib/rabbitmq
+      - ./dev-rabbitmq/conf:/etc/rabbitmq
+    restart: always
+
+  # 9. Kafka（官方镜像，KRaft 单节点，无需 Zookeeper）
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: dev-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      - CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qk
+      - KAFKA_NODE_ID=1
+      - KAFKA_PROCESS_ROLES=broker,controller
+      - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,INTERNAL://:9094
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092,INTERNAL://kafka:9094
+      - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT
+      - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./dev-kafka/data:/var/lib/kafka/data
+    restart: always
+
+  # 10. Kafka UI（Kafka 可视化管理，连接 compose 内 kafka 的 INTERNAL 监听器 kafka:9094）
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: dev-kafka-ui
+    ports:
+      - "10083:8080"
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9094
+      - TZ=Asia/Shanghai
+    restart: always
+
+  # 11. MinIO 对象存储（S3 兼容）
+  minio:
+    image: minio/minio:latest
+    container_name: dev-minio
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # 控制台 Web UI
+    environment:
+      - MINIO_ROOT_USER=admin
+      - MINIO_ROOT_PASSWORD=admin123
+      - TZ=Asia/Shanghai
+    command: server /data --console-address ":9001"
+    volumes:
+      - ./dev-minio/data:/data
+    restart: always
+
+  # 12. RedisInsight（Redis GUI 可视化管理）
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: dev-redisinsight
+    ports:
+      - "5540:5540"
+    environment:
+      - TZ=Asia/Shanghai
+    restart: always
+
+  # 13. CloudBeaver（DBeaver 网页版，现代 UI、中文友好，支持 MySQL / PostgreSQL / SQLite / MariaDB 等多库）
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:latest
+    container_name: dev-cloudbeaver
+    ports:
+      - "8978:8978"
+    environment:
+      - TZ=Asia/Shanghai
+    restart: always
+
+  # 14. NaviDog（轻量 Web 端 MySQL 管理工具，Navicat 风格、中文原生；仅 MySQL）
+  #     官方仅提供 npm 包，镜像在 dev-navidog/ 自建（上游硬编码监听 127.0.0.1，已在 Dockerfile 改为 HOST 可配）
+  navidog:
+    build:
+      context: ./dev-navidog
+    image: dev-navidog:latest
+    container_name: dev-navidog
+    ports:
+      - "3001:3001"
+    environment:
+      - TZ=Asia/Shanghai
+      - HOST=0.0.0.0
+      - PORT=3001
+    restart: always
