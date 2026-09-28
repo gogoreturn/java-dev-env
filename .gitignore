@@ -20,3 +20,7 @@ dev-nginx/logs/
 dev-rabbitmq/data/
 dev-redis/data/
 dev-redis/logs/
+
+软件包/
+
+.idea
