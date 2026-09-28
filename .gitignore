@@ -3,7 +3,6 @@ images/
 
 # ===== 离线资产缓存（JDK / Maven / IK 源码 zip / 额外镜像，2.8G+，不进版本库）=====
 # IK 插件已解压在 dev-elasticsearch*/plugins/，克隆后即可用，无需本目录
-软件包/
 
 # ===== 各容器运行时数据 / 日志（bind 挂载，含实际业务数据）=====
 dev-elasticsearch7/data/
@@ -21,6 +20,3 @@ dev-nginx/logs/
 dev-rabbitmq/data/
 dev-redis/data/
 dev-redis/logs/
-
-# JRebel 构建产物（由 dev-jrebel/Dockerfile 重新构建）
-dev-jrebel/target/
