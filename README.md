@@ -11,7 +11,13 @@
 
 ```
 java-dev-env/
-├── docker-compose.yml              # 容器编排定义
+├── docker-compose.yml              # 主编排：仅 include 下方模块，不内联任何服务定义
+├── compose/                       # ★ 模块化编排：每个文件是一个独立业务域
+│   ├── core.yml                   #   核心基础设施：jrebel / redis / mysql / nginx / rabbitmq / minio
+│   ├── search.yml                 #   搜索引擎：elasticsearch 7 / 8 / 9
+│   ├── messaging.yml              #   消息队列：kafka / kafka-ui
+│   ├── database-gui.yml           #   数据库 GUI：cloudbeaver / navidog / redisinsight
+│   └── tools.yml                  #   工具箱：it-tools
 ├── images/                        # 离线镜像（docker save 产物，见第五节）
 ├── script/                        # 常用运维脚本（见第三节下方「常用脚本」）
 │   ├── start.sh                   # 启动整套 / 指定服务
@@ -34,6 +40,8 @@ java-dev-env/
 └── dev-minio/        { data }          # MinIO 对象存储（S3 兼容）
 ```
 
+> **编排方式（模块化）**：根 `docker-compose.yml` 只做编排，通过 `include` 引入 `compose/` 下的 5 个模块文件。每个模块是一个业务域，可独立编辑、按需增删；所有模块共享项目名 `java-dev-env` 与同一默认网络，因此跨模块按服务名互访（例如 `kafka-ui` → `kafka:9094`、`cloudbeaver` → `mysql`）。启动方式不变，在仓库根目录执行 `bash script/start.sh` 即可拉起全部模块。
+
 > `it-tools`、`kafka-ui`、`redisinsight`、`cloudbeaver`、`navidog` 为纯前端 / 无状态工具，无持久数据，不建独立目录。
 
 ---
@@ -42,23 +50,23 @@ java-dev-env/
 
 ## 二、容器总览
 
-| 序号 | 服务名            | 容器名              | 镜像                              | 宿主机端口         | 说明                     |
-| -- | -------------- | ---------------- | ------------------------------- | ------------- | ---------------------- |
-| 1  | jrebel         | dev-jrebelServer | 本地构建（见 `dev-jrebel/Dockerfile`） | 10082 → 8081  | JRebel 授权服务器           |
-| 2  | redis          | dev-redis        | redis:latest                    | 6379          | 缓存 / 队列（密码 `123456`）   |
-| 3  | mysql          | dev-mysql        | mysql:9                         | 3306          | 关系型数据库                 |
-| 4  | elasticsearch  | dev-es           | elasticsearch:7.17.3            | 9200 / 9300   | 搜索引擎（内置 IK 分词）         |
-| 4b | elasticsearch8 | dev-es8          | elasticsearch:8.17.3            | 9201 / 9301   | ES 8（内置 IK，xpack 安全关闭） |
-| 4c | elasticsearch9 | dev-es9          | elasticsearch:9.2.0             | 9202 / 9302   | ES 9（内置 IK，xpack 安全关闭） |
-| 5  | nginx          | dev-nginx        | nginx:latest                    | 80 / 443 / 81 | 反向代理 / 静态服务            |
-| 6  | it-tools       | it-tools-cn      | qingfeng2336/it-tools:latest    | 10081 → 80    | 前端开发者工具箱               |
-| 7  | rabbitmq       | dev-rabbitmq     | rabbitmq:management             | 5672 / 15672  | 消息队列（带管理界面）            |
-| 8  | kafka          | dev-kafka        | apache/kafka:3.9.0              | 9092          | 消息流平台（KRaft 单节点）       |
-| 8b | kafka-ui | dev-kafka-ui | provectuslabs/kafka-ui:latest | 10083 → 8080 | Kafka 可视化管理 |
-| 8c | minio | dev-minio | minio/minio:latest | 9000 / 9001 | 对象存储（S3 兼容） |
-| 8d | redisinsight | dev-redisinsight | redis/redisinsight:latest | 5540 | Redis 可视化管理 |
-| 8f | cloudbeaver | dev-cloudbeaver | dbeaver/cloudbeaver:latest | 8978 | 数据库管理 Web（DBeaver 网页版，多库，中文） |
-| 8g | navidog | dev-navidog | dev-navidog:latest（本地构建） | 3001 | MySQL 管理 Web（Navicat 风格，中文原生） |
+| 模块 | 服务名 | 容器名 | 镜像 | 宿主机端口 | 说明 |
+| --- | --- | --- | --- | --- | --- |
+| core | jrebel | dev-jrebelServer | 本地构建（见 `dev-jrebel/Dockerfile`） | 10082 → 8081 | JRebel 授权服务器 |
+| core | redis | dev-redis | redis:8.10.1 | 6379 | 缓存 / 队列（密码 `123456`） |
+| core | mysql | dev-mysql | mysql:9 | 3306 | 关系型数据库 |
+| core | nginx | dev-nginx | nginx:1.31.4 | 80 / 443 / 81 | 反向代理 / 静态服务 |
+| core | rabbitmq | dev-rabbitmq | rabbitmq:management | 5672 / 15672 | 消息队列（带管理界面） |
+| core | minio | dev-minio | minio/minio:RELEASE.2024-12-18T13-15-44Z | 9000 / 9001 | 对象存储（S3 兼容） |
+| search | elasticsearch7 | dev-es7 | elasticsearch:7.17.3 | 9200 / 9300 | 搜索引擎（内置 IK 分词） |
+| search | elasticsearch8 | dev-es8 | elasticsearch:8.17.3 | 9201 / 9301 | ES 8（内置 IK，xpack 安全关闭） |
+| search | elasticsearch9 | dev-es9 | elasticsearch:9.2.0 | 9202 / 9302 | ES 9（内置 IK，xpack 安全关闭） |
+| messaging | kafka | dev-kafka | apache/kafka:3.9.0 | 9092 | 消息流平台（KRaft 单节点） |
+| messaging | kafka-ui | dev-kafka-ui | provectuslabs/kafka-ui:v0.7.2 | 10083 → 8080 | Kafka 可视化管理 |
+| database-gui | redisinsight | dev-redisinsight | redis/redisinsight@sha256:b5e19ee240abef6edb435871b90ff8a210995422e8e018ab61c0339d318a1f84 | 5540 | Redis 可视化管理 |
+| database-gui | cloudbeaver | dev-cloudbeaver | dbeaver/cloudbeaver:24.04 | 8978 | 数据库管理 Web（DBeaver 网页版，多库，中文） |
+| database-gui | navidog | dev-navidog | dev-navidog:latest（本地构建） | 3001 | MySQL 管理 Web（Navicat 风格，中文原生） |
+| tools | it-tools | it-tools-cn | qingfeng2336/it-tools@sha256:1263d4d3b6d76afc6db32b57f78eb12567f5d0272e16f7f7b6c01c78e517bc5c | 10081 → 80 | 前端开发者工具箱 |
 
 ---
 
@@ -74,7 +82,7 @@ java-dev-env/
 
 ### 2. Redis（`dev-redis`）
 
-- **镜像**：`redis:latest`
+- **镜像**：`redis:8.10.1`
 - **端口**：`6379`
 - **目录映射**：
   - `./dev-redis/data` → `/data`（RDB / AOF 持久化文件）
@@ -123,7 +131,7 @@ java-dev-env/
 
 ### 5. Nginx（`dev-nginx`）
 
-- **镜像**：`nginx:latest`
+- **镜像**：`nginx:1.31.4`
 - **端口**：`80` / `443` / `81`
 - **目录映射**：
   - `./dev-nginx/conf/nginx.conf` → `/etc/nginx/nginx.conf`
@@ -134,7 +142,7 @@ java-dev-env/
 
 ### 6. IT-Tools（`it-tools`）
 
-- **镜像**：`qingfeng2336/it-tools:latest`
+- **镜像**：`qingfeng2336/it-tools@sha256:1263d4d3b6d76afc6db32b57f78eb12567f5d0272e16f7f7b6c01c78e517bc5c`
 - **端口**：`10081`（宿主机）→ `80`（容器）
 - **数据**：无持久化数据（纯前端）
 - **用途**：开发者常用小工具集合（编解码、格式化、哈希、正则等）
@@ -169,7 +177,7 @@ java-dev-env/
 
 ### 9. Kafka UI（`kafka-ui`）
 
-- **镜像**：`provectuslabs/kafka-ui:latest`（已拉取并导出到 `images/kafka-ui-latest.tar`）
+- **镜像**：`provectuslabs/kafka-ui:v0.7.2`（已拉取并导出到 `images/kafka-ui-v0.7.2.tar`）
 - **端口**：`10083`（宿主机）→ `8080`（容器）
 - **连接 Kafka**：`kafka:9094`（compose 内 INTERNAL 监听器，见上方 Kafka 多监听器说明）
 - **数据**：无状态（不建独立目录）
@@ -179,7 +187,7 @@ java-dev-env/
 
 ### 10. MinIO（`minio`）
 
-- **镜像**：`minio/minio:latest`
+- **镜像**：`minio/minio:RELEASE.2024-12-18T13-15-44Z`
 - **端口**：
   - `9000`：S3 API（应用程序通过 SDK / 兼容 S3 的客户端访问）
   - `9001`：控制台 Web UI
@@ -192,7 +200,7 @@ java-dev-env/
 - **健康校验**：`GET http://localhost:9000/minio/health/live` 返回 200 即正常
 
 ### 11. RedisInsight（`redisinsight`）
-- **镜像**：`redis/redisinsight:latest`
+- **镜像**：`redis/redisinsight@sha256:b5e19ee240abef6edb435871b90ff8a210995422e8e018ab61c0339d318a1f84`
 - **端口**：`5540`（宿主机）→ `5540`（容器）
 - **数据**：无状态（不建独立目录）
 - **用途**：Redis 可视化管理（键值浏览、内存分析、慢查询等）
@@ -204,7 +212,7 @@ java-dev-env/
 两套数据库管理 Web 工具并存，按需选用（均通过浏览器访问，无状态）：
 
 #### 12a. CloudBeaver（`cloudbeaver`）
-- **镜像**：`dbeaver/cloudbeaver:latest`
+- **镜像**：`dbeaver/cloudbeaver:24.04`
 - **端口**：`8978`（宿主机）→ `8978`（容器）
 - **数据**：无状态（不建独立目录）
 - **用途**：DBeaver 网页版，现代 IDE 式 UI、内置简体中文（跟随浏览器语言），支持 **MySQL / PostgreSQL / SQLite / MariaDB** 等多库
@@ -250,22 +258,22 @@ docker compose build jrebel && docker compose up -d jrebel
 
 为在无外网 / 拉取受限的新电脑上快速复现整套环境，本目录 `images/` 已用 `docker save` 预导出 compose 实际引用的全部镜像（标签中的 `:` 已转为 `-` 以兼容 Windows 文件名）：
 
-| 文件                       | 对应镜像                          |                               |
-| ------------------------ | ----------------------------- | ----------------------------- |
-| dev-jrebel.tar           | dev-jrebel:latest（本地构建）       |                               |
-| redis-latest.tar         | redis:latest                  |                               |
-| mysql-9.tar              | mysql:9                       |                               |
-| elasticsearch-7.17.3.tar | elasticsearch:7.17.3          |                               |
-| elasticsearch-8.17.3.tar | elasticsearch:8.17.3          |                               |
-| elasticsearch-9.2.0.tar  | elasticsearch:9.2.0           |                               |
-| nginx-latest.tar         | nginx:latest                  |                               |
-| it-tools-latest.tar      | qingfeng2336/it-tools:latest  |                               |
-| rabbitmq-management.tar  | rabbitmq:management           |                               |
-| kafka-3.9.0.tar          | apache/kafka:3.9.0            |                               |
-| kafka-ui-latest.tar | provectuslabs/kafka-ui:latest |
-| minio-latest.tar         | minio/minio:latest            |                               |
-| redisinsight-latest.tar | redis/redisinsight:latest |
-| cloudbeaver-latest.tar | dbeaver/cloudbeaver:latest |
+| 文件 | 对应镜像 |
+| --- | --- |
+| dev-jrebel-latest.tar | dev-jrebel:latest（本地构建） |
+| redis-8.10.1.tar | redis:8.10.1 |
+| mysql-9.tar | mysql:9 |
+| elasticsearch-7.17.3.tar | elasticsearch:7.17.3 |
+| elasticsearch-8.17.3.tar | elasticsearch:8.17.3 |
+| elasticsearch-9.2.0.tar | elasticsearch:9.2.0 |
+| nginx-1.31.4.tar | nginx:1.31.4 |
+| it-tools@sha256-1263d4d3b6d76afc6db32b57f78eb12567f5d0272e16f7f7b6c01c78e517bc5c.tar | qingfeng2336/it-tools@sha256:1263…（digest 锁版） |
+| rabbitmq-management.tar | rabbitmq:management |
+| kafka-3.9.0.tar | apache/kafka:3.9.0 |
+| kafka-ui-v0.7.2.tar | provectuslabs/kafka-ui:v0.7.2 |
+| minio-RELEASE.2024-12-18T13-15-44Z.tar | minio/minio:RELEASE.2024-12-18T13-15-44Z |
+| redisinsight@sha256-b5e19ee240abef6edb435871b90ff8a210995422e8e018ab61c0339d318a1f84.tar | redis/redisinsight@sha256:b5e19…（digest 锁版） |
+| cloudbeaver-24.04.tar | dbeaver/cloudbeaver:24.04 |
 | dev-navidog-latest.tar | dev-navidog:latest（本地构建） |
 
 **新电脑恢复步骤**：
@@ -317,7 +325,7 @@ docker compose build jrebel && docker compose up -d jrebel
 
 ## 七、可补充的开发工具 / 平台建议
 
-当前栈已覆盖缓存、关系库、搜索引擎、消息队列、对象存储、反向代理、授权服务器、Kafka 可视化、Redis GUI、数据库管理与开发者工具箱。若想进一步贴近真实 Java / Spring Boot 微服务开发，还可考虑补充（按需加入 `docker-compose.yml`）：
+当前栈已覆盖缓存、关系库、搜索引擎、消息队列、对象存储、反向代理、授权服务器、Kafka 可视化、Redis GUI、数据库管理与开发者工具箱。若想进一步贴近真实 Java / Spring Boot 微服务开发，还可考虑补充（按需加入 `compose/` 下对应模块文件，例如新的消息中间件放 `messaging.yml`）：
 
 - **对象存储**：`minio/minio` ✅ 已加入（见第十节），开箱即用
 - **配置 / 注册中心**：`nacos/nacos`（阿里开源，配置管理 + 服务发现，国内 Spring Cloud Alibaba 标配）
@@ -338,4 +346,4 @@ docker compose build jrebel && docker compose up -d jrebel
 
 ---
 
-*最后更新：2026-09-28*
+*最后更新：2026-09-29*
