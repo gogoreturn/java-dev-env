@@ -1,0 +1,20 @@
+# Elasticsearch 9.2.0（已内置 IK 分词，插件解压在 ../dev-elasticsearch9/plugins/analysis-ik）
+# 归属域：search
+services:
+  elasticsearch9:
+    image: elasticsearch:9.2.0
+    container_name: dev-es9
+    profiles: [elasticsearch9]
+    ports:
+      - "9202:9200"
+      - "9302:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../dev-elasticsearch9/data:/usr/share/elasticsearch/data
+      - ../dev-elasticsearch9/plugins:/usr/share/elasticsearch/plugins
+      - ../dev-elasticsearch9/logs:/usr/share/elasticsearch/logs
+    restart: always

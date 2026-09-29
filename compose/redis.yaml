@@ -1,0 +1,17 @@
+# Redis 8
+# 归属域：core
+# 配置已提交在仓库 dev-redis/conf/redis.conf（挂载到 /usr/local/etc/redis），
+# 直接用它启动即可，无需在 YAML 里内联生成脚本。
+services:
+  redis:
+    image: redis:8.10.1
+    container_name: dev-redis
+    profiles: [redis]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ../dev-redis/data:/data
+      - ../dev-redis/conf:/usr/local/etc/redis
+      - ../dev-redis/logs:/var/log/redis
+    command: redis-server /usr/local/etc/redis/redis.conf
+    restart: always

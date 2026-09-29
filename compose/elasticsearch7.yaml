@@ -1,0 +1,19 @@
+# Elasticsearch 7.17.3（基础镜像 + 挂载插件目录；当前未内置 IK）
+# 归属域：search
+services:
+  elasticsearch7:
+    image: elasticsearch:7.17.3
+    container_name: dev-es7
+    profiles: [elasticsearch7]
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../dev-elasticsearch7/data:/usr/share/elasticsearch/data
+      - ../dev-elasticsearch7/plugins:/usr/share/elasticsearch/plugins
+      - ../dev-elasticsearch7/logs:/usr/share/elasticsearch/logs
+    restart: always

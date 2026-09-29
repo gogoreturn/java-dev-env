@@ -1,0 +1,12 @@
+# CloudBeaver（DBeaver 网页版，现代 UI、中文友好，支持 MySQL / PostgreSQL / SQLite / MariaDB 等多库）
+# 归属域：dbgui
+services:
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:24.04
+    container_name: dev-cloudbeaver
+    profiles: [cloudbeaver]
+    ports:
+      - "8978:8978"
+    environment:
+      - TZ=Asia/Shanghai
+    restart: always

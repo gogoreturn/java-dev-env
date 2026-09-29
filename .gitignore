@@ -23,4 +23,8 @@ dev-redis/logs/
 
 软件包/
 
+# ===== 本地勾选状态（start.sh 交互选择持久化，机器私有，不进版本库）=====
+.selection
+.selection*
+
 .idea

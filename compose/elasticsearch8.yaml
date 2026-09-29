@@ -1,0 +1,20 @@
+# Elasticsearch 8.17.3（已内置 IK 分词，插件解压在 ../dev-elasticsearch8/plugins/analysis-ik）
+# 归属域：search
+services:
+  elasticsearch8:
+    image: elasticsearch:8.17.3
+    container_name: dev-es8
+    profiles: [elasticsearch8]
+    ports:
+      - "9201:9200"
+      - "9301:9300"
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../dev-elasticsearch8/data:/usr/share/elasticsearch/data
+      - ../dev-elasticsearch8/plugins:/usr/share/elasticsearch/plugins
+      - ../dev-elasticsearch8/logs:/usr/share/elasticsearch/logs
+    restart: always

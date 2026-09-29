@@ -3,10 +3,10 @@
 # 离线恢复镜像脚本
 # 把本环境整套 Docker 镜像（images/*.tar）导入本地镜像库。
 # 场景：整套目录拷贝到无外网的新电脑，装好 Docker Desktop 后执行本脚本，
-#       随后 bash script/start.sh 即可启动。
+#       随后 bash script/sh-start.sh 即可启动。
 # 用法（Windows 用 Git Bash / WSL；Linux / macOS 用终端）：
 #   cd java-dev-env
-#   bash script/load-images.sh
+#   bash script/sh-load-images.sh
 #
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,4 +33,4 @@ for f in "${tars[@]}"; do
 done
 
 echo
-echo "✅ 全部镜像导入完成。可继续执行： bash script/start.sh"
+echo "✅ 全部镜像导入完成。可继续执行： bash script/sh-start.sh"

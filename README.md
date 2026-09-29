@@ -12,19 +12,31 @@
 ```
 java-dev-env/
 ├── docker-compose.yml              # 主编排：仅 include 下方模块，不内联任何服务定义
-├── compose/                       # ★ 模块化编排：每个文件是一个独立业务域
-│   ├── core.yml                   #   核心基础设施：jrebel / redis / mysql / nginx / rabbitmq / minio
-│   ├── search.yml                 #   搜索引擎：elasticsearch 7 / 8 / 9
-│   ├── messaging.yml              #   消息队列：kafka / kafka-ui
-│   ├── database-gui.yml           #   数据库 GUI：cloudbeaver / navidog / redisinsight
-│   └── tools.yml                  #   工具箱：it-tools
+├── compose/                       # ★ 一个容器一个文件：每个 *.yaml 对应一个容器
+│   ├── jrebel.yaml                #   JRebel 授权服务器
+│   ├── redis.yaml                 #   Redis 8
+│   ├── mysql.yaml                 #   MySQL 9
+│   ├── nginx.yaml                 #   Nginx
+│   ├── rabbitmq.yaml              #   RabbitMQ（带管理界面）
+│   ├── minio.yaml                 #   MinIO 对象存储（S3 兼容）
+│   ├── elasticsearch7.yaml        #   Elasticsearch 7（内置 IK）
+│   ├── elasticsearch8.yaml        #   Elasticsearch 8（内置 IK）
+│   ├── elasticsearch9.yaml        #   Elasticsearch 9（内置 IK）
+│   ├── kafka.yaml                 #   Kafka（KRaft 单节点）
+│   ├── kafka-ui.yaml              #   Kafka UI
+│   ├── cloudbeaver.yaml           #   CloudBeaver（多库 + 中文）
+│   ├── navidog.yaml               #   NaviDog（MySQL 管理，本地构建）
+│   ├── redisinsight.yaml          #   RedisInsight
+│   └── it-tools.yaml              #   it-tools 工具箱
 ├── images/                        # 离线镜像（docker save 产物，见第五节）
-├── script/                        # 常用运维脚本（见第三节下方「常用脚本」）
-│   ├── start.sh                   # 启动整套 / 指定服务
-│   ├── stop.sh                    # 停止 / 销毁（--clean 含数据卷）
-│   ├── status.sh                  # 容器状态 + HTTP/TCP 健康探测
-│   ├── load-images.sh             # 新电脑一键导入镜像
-│   └── save-images.sh             # 重新导出 compose 全部镜像
+├── script/                        # 常用运维脚本（见下方「常用脚本」）
+│   ├── start.mjs                  # ★ 启动器核心逻辑（纯 Node 零依赖，不直接执行）
+│   ├── sh-start.sh                #   【Linux/macOS/Git Bash】启动器包装，内部调用 start.mjs
+│   ├── win-start.cmd              #   【Windows PowerShell/CMD】启动器，直接走 node，避开 WSL
+│   ├── sh-stop.sh                 #   【Linux/macOS】停止/销毁全部（docker compose down，--clean 含数据卷）
+│   ├── win-stop.cmd               #   【Windows】同上，直接双击用
+│   ├── sh-load-images.sh          #   【Linux/macOS】新电脑一键导入镜像
+│   └── sh-save-images.sh          #   【Linux/macOS】重新导出 compose 全部镜像
 ├── 软件包/                         # IK 分词插件离线包（各 ES 版本）
 │   └── elasticsearch-analysis-ik/
 ├── dev-jrebel/                    # JRebel License Server（含 Dockerfile + target/）
@@ -40,7 +52,7 @@ java-dev-env/
 └── dev-minio/        { data }          # MinIO 对象存储（S3 兼容）
 ```
 
-> **编排方式（模块化）**：根 `docker-compose.yml` 只做编排，通过 `include` 引入 `compose/` 下的 5 个模块文件。每个模块是一个业务域，可独立编辑、按需增删；所有模块共享项目名 `java-dev-env` 与同一默认网络，因此跨模块按服务名互访（例如 `kafka-ui` → `kafka:9094`、`cloudbeaver` → `mysql`）。启动方式不变，在仓库根目录执行 `bash script/start.sh` 即可拉起全部模块。
+> **编排方式（一个容器一个文件）**：根 `docker-compose.yml` 只做编排，通过 `include` 引入 `compose/` 下 15 个容器文件。每个文件对应一个容器，可独立编辑、按需增删；所有文件共享项目名 `java-dev-env` 与同一默认网络，因此跨文件按服务名互访（例如 `kafka-ui` → `kafka:9094`、`cloudbeaver` → `mysql`）。每个服务只声明 `profiles: [<服务名>]`——默认不激活任何 profile 时什么都不启（裸 `docker compose up` 不会启动任何容器），「引用 / 排除」某个容器 = 启动时勾选 / 不勾选它。交互式启动器在仓库根目录执行 `node script/start.mjs`（或 Windows 下 `.\script\win-start.cmd`），勾选需要的容器即可；启动器用 `docker compose up -d <服务名>` 直接点名，Compose 会自动激活其同名 profile（选择存 `.selection` 并回显）。
 
 > `it-tools`、`kafka-ui`、`redisinsight`、`cloudbeaver`、`navidog` 为纯前端 / 无状态工具，无持久数据，不建独立目录。
 
@@ -50,23 +62,23 @@ java-dev-env/
 
 ## 二、容器总览
 
-| 模块 | 服务名 | 容器名 | 镜像 | 宿主机端口 | 说明 |
+| 分类 | 服务名 | 容器名 | 镜像 | 宿主机端口 | 说明 |
 | --- | --- | --- | --- | --- | --- |
-| core | jrebel | dev-jrebelServer | 本地构建（见 `dev-jrebel/Dockerfile`） | 10082 → 8081 | JRebel 授权服务器 |
-| core | redis | dev-redis | redis:8.10.1 | 6379 | 缓存 / 队列（密码 `123456`） |
-| core | mysql | dev-mysql | mysql:9 | 3306 | 关系型数据库 |
-| core | nginx | dev-nginx | nginx:1.31.4 | 80 / 443 / 81 | 反向代理 / 静态服务 |
-| core | rabbitmq | dev-rabbitmq | rabbitmq:management | 5672 / 15672 | 消息队列（带管理界面） |
-| core | minio | dev-minio | minio/minio:RELEASE.2024-12-18T13-15-44Z | 9000 / 9001 | 对象存储（S3 兼容） |
-| search | elasticsearch7 | dev-es7 | elasticsearch:7.17.3 | 9200 / 9300 | 搜索引擎（内置 IK 分词） |
-| search | elasticsearch8 | dev-es8 | elasticsearch:8.17.3 | 9201 / 9301 | ES 8（内置 IK，xpack 安全关闭） |
-| search | elasticsearch9 | dev-es9 | elasticsearch:9.2.0 | 9202 / 9302 | ES 9（内置 IK，xpack 安全关闭） |
-| messaging | kafka | dev-kafka | apache/kafka:3.9.0 | 9092 | 消息流平台（KRaft 单节点） |
-| messaging | kafka-ui | dev-kafka-ui | provectuslabs/kafka-ui:v0.7.2 | 10083 → 8080 | Kafka 可视化管理 |
-| database-gui | redisinsight | dev-redisinsight | redis/redisinsight@sha256:b5e19ee240abef6edb435871b90ff8a210995422e8e018ab61c0339d318a1f84 | 5540 | Redis 可视化管理 |
-| database-gui | cloudbeaver | dev-cloudbeaver | dbeaver/cloudbeaver:24.04 | 8978 | 数据库管理 Web（DBeaver 网页版，多库，中文） |
-| database-gui | navidog | dev-navidog | dev-navidog:latest（本地构建） | 3001 | MySQL 管理 Web（Navicat 风格，中文原生） |
-| tools | it-tools | it-tools-cn | qingfeng2336/it-tools@sha256:1263d4d3b6d76afc6db32b57f78eb12567f5d0272e16f7f7b6c01c78e517bc5c | 10081 → 80 | 前端开发者工具箱 |
+| 数据库与缓存 | mysql | dev-mysql | mysql:9 | 3306 | 关系型数据库 |
+| 数据库与缓存 | redis | dev-redis | redis:8.10.1 | 6379 | 缓存 / 队列（密码 `123456`） |
+| 对象存储 | minio | dev-minio | minio/minio:RELEASE.2024-12-18T13-15-44Z | 9000 / 9001 | 对象存储（S3 兼容） |
+| 搜索引擎 | elasticsearch7 | dev-es7 | elasticsearch:7.17.3 | 9200 / 9300 | 搜索引擎（内置 IK 分词） |
+| 搜索引擎 | elasticsearch8 | dev-es8 | elasticsearch:8.17.3 | 9201 / 9301 | ES 8（内置 IK，xpack 安全关闭） |
+| 搜索引擎 | elasticsearch9 | dev-es9 | elasticsearch:9.2.0 | 9202 / 9302 | ES 9（内置 IK，xpack 安全关闭） |
+| 消息队列 | rabbitmq | dev-rabbitmq | rabbitmq:management | 5672 / 15672 | 消息队列（带管理界面） |
+| 消息队列 | kafka | dev-kafka | apache/kafka:3.9.0 | 9092 | 消息流平台（KRaft 单节点） |
+| 消息队列 | kafka-ui | dev-kafka-ui | provectuslabs/kafka-ui:v0.7.2 | 10083 → 8080 | Kafka 可视化管理 |
+| 网络代理 | nginx | dev-nginx | nginx:1.31.4 | 80 / 443 / 81 | 反向代理 / 静态服务 |
+| 可视化管理 | redisinsight | dev-redisinsight | redis/redisinsight@sha256:b5e19ee240abef6edb435871b90ff8a210995422e8e018ab61c0339d318a1f84 | 5540 | Redis 可视化管理 |
+| 可视化管理 | cloudbeaver | dev-cloudbeaver | dbeaver/cloudbeaver:24.04 | 8978 | 数据库管理 Web（DBeaver 网页版，多库，中文） |
+| 可视化管理 | navidog | dev-navidog | dev-navidog:latest（本地构建） | 3001 | MySQL 管理 Web（Navicat 风格，中文原生） |
+| 开发工具 | jrebel | dev-jrebelServer | 本地构建（见 `dev-jrebel/Dockerfile`） | 10082 → 8081 | JRebel 授权服务器 |
+| 开发工具 | it-tools | it-tools-cn | qingfeng2336/it-tools@sha256:1263d4d3b6d76afc6db32b57f78eb12567f5d0272e16f7f7b6c01c78e517bc5c | 10081 → 80 | 前端开发者工具箱 |
 
 ---
 
@@ -86,10 +98,10 @@ java-dev-env/
 - **端口**：`6379`
 - **目录映射**：
   - `./dev-redis/data` → `/data`（RDB / AOF 持久化文件）
-  - `./dev-redis/conf` → `/usr/local/etc/redis`（配置文件，缺失时容器自动生成全量默认配置）
+  - `./dev-redis/conf` → `/usr/local/etc/redis`（配置文件 `redis.conf`，已提交在仓库，直接用其启动）
   - `./dev-redis/logs` → `/var/log/redis`
-- **关键配置（默认生成）**：`bind 0.0.0.0`、`protected-mode no`、`appendonly yes`、`maxmemory 512mb`、`allkeys-lru`
-- **密码**：`requirepass 123456`（配置文件已写入；自动生成的默认配置也会带上该密码）
+- **关键配置（见 `dev-redis/conf/redis.conf`）**：`bind 0.0.0.0`、`protected-mode no`、`appendonly yes`、`maxmemory 512mb`、`allkeys-lru`
+- **密码**：`requirepass 123456`（已写进 `dev-redis/conf/redis.conf`）
 - **连接**：`redis-cli -h localhost -p 6379 -a 123456`（无密码连接会被拒绝 `NOAUTH`）
 
 ### 3. MySQL（`dev-mysql`）
@@ -229,27 +241,126 @@ java-dev-env/
 
 ---
 
-## 四、常用操作
+## 四、常用操作（勾选需要的容器启动）
+
+每个服务只声明 `profiles: [<服务名>]`，默认不激活任何 profile 时什么都不启。
+「引用 / 排除」某个容器 = 启动时勾选 / 不勾选它——选择通过交互式启动器完成。
+
+### 交互式启动
+
+启动器用方向键 + 空格勾选，**不是**敲编号。在仓库根目录执行：
 
 ```bash
-# 启动全部
-docker compose up -d
+# Windows（PowerShell / CMD，推荐，避开 bash→WSL 路由问题，且保证交互界面拿到原生控制台）
+.\script\win-start.cmd
 
-# 仅启动某个服务
-docker compose up -d rabbitmq kafka
+# 或 Git Bash / Linux / macOS
+bash script/sh-start.sh
+# 也可直接： node script/start.mjs
+```
 
-# 查看状态
-docker compose ps
+> **交互界面进不去？** Git Bash 下 node.exe 有时拿不到原生 TTY（`isTTY=false`），方向键界面无法进入原始键盘模式。`sh-start.sh` 已内置：若检测到 `winpty` 会自动用它启动（推荐 Git Bash 用户先装好 winpty）；否则请改用 PowerShell / cmd 跑 `.\script\win-start.cmd`，或直接 `node script/start.mjs redis mysql` 非交互指定。`--list` / 非交互模式不受 TTY 影响，任何终端都能用。
 
-# 查看某服务日志
+界面长这样（方向键移动光标，空格切换勾选，回车启动）：
+
+```
+◆  java-dev-env 启动器
+  勾选需要的容器，回车启动（选择已持久化到 .selection）
+
+  数据库与缓存
+  ❯ ● redis              Redis — 缓存 / 会话
+    ○ mysql              MySQL — 关系型数据库
+  对象存储
+    ○ minio              MinIO — 对象存储 (S3 兼容)
+  搜索引擎
+    ○ elasticsearch7     Elasticsearch 7 — 搜索引擎
+  消息队列
+    ○ rabbitmq           RabbitMQ — 消息队列
+  ...（共 7 个分类：数据库与缓存 / 对象存储 / 搜索引擎 / 消息队列 / 网络代理 / 可视化管理 / 开发工具）
+
+  ↑/↓ 移动  空格 勾选  a 全选  n 全不选  r 重置  enter 启动  q 退出
+  已选 1 / 15  （已读取上次选择）
+```
+
+快捷键：`↑/↓` 移动 · `空格` 勾选/取消 · `a` 全选 · `n` 全不选 · `r` 重置为「默认 6 件套」· `enter` 保存并启动 · `q` 退出（不保存）。
+勾选结果持久化到仓库根 `.selection`，**下次进入自动回显上次的勾选**（列表右下角会提示「已读取上次选择」）。
+
+非交互 / 自动化用法：
+
+```bash
+node script/start.mjs redis mysql        # 直接以给定服务启动并保存选择
+node script/start.mjs --list             # 仅列出全部可启服务
+node script/start.mjs --dry-run redis    # 打印将执行的 docker 命令（不真正运行）
+```
+
+### 操作手册（改动如何生效）
+
+日常所有「让配置改动落地」的动作，本质上都是**重跑启动器**——它执行 `docker compose up -d <勾选的服务>`，而 Compose 会自动比对配置哈希，发现 `compose/<name>.yaml` 变了就重建（recreate）对应容器。下面按场景说明。
+
+#### 场景 1：改了挂载路径 / 端口 / 环境变量 / 镜像 tag（最常见）
+无需手动删容器，三步即可：
+1. 确认该容器在 `.selection` 里仍被勾选（重跑启动器时它会默认勾上，或已被回显）；
+2. 重跑启动器：Windows 用 `.\script\win-start.cmd`，Git Bash / Linux / macOS 用 `bash script/sh-start.sh`；
+3. 启动器检测到配置变化，自动 recreate 受影响的容器，新挂载立即生效。
+
+> 等价的原生命令：`docker compose up -d redis`（直接点名服务即可，不必带 `--profile`）。
+
+#### 场景 2：改了「本地构建镜像」的 Dockerfile / 构建上下文
+本项目中**只有 `jrebel` 和 `navidog` 是 `build:` 镜像**。`up -d` 不会自动重新构建镜像，改了它们必须显式 build：
+```bash
+docker compose build jrebel                 # 改了 jrebel 的 Dockerfile / dev-jrebel/ 上下文
+docker compose up -d --build jrebel         # build + 启动一步到位（推荐）
+```
+其余 13 个都是 `image:` 现成镜像，不存在这个问题。
+
+#### 场景 3：补启 / 排除容器
+- **补启一个之前没勾选的容器**：重跑启动器，把新容器勾上 → 回车。Compose 的 `up` 是增量的，只确保勾选的起来，已运行的其它容器不受影响。
+- **排除一个正在运行的容器**：取消它的勾选 → 回车（仅 `up` 不会自动停掉未勾选的），再单独 `docker compose stop <服务名>` 或 `docker compose down <服务名>` 把它停掉。
+
+#### 场景 4：验证配置 & 兜底重建
+| 目的 | 命令 |
+|------|------|
+| 改完先预览最终解析配置（排查 YAML 写错） | `docker compose config`（列出全部服务定义，不受 profile 影响） |
+| 极少数 Compose 没检测到变化、没重建 | `docker compose up -d --force-recreate <服务名>` |
+| 确认挂载是否真的生效 | `docker inspect <容器名> --format '{{json .Mounts}}'` |
+| 看运行状态（全部） | `docker ps`（按项目名 java-dev-env 过滤）；看单个：`docker compose ps <服务名>` |
+| 看实时日志 | `docker compose logs -f <服务名>` |
+
+#### ⚠️ 数据安全提醒
+- 改的是挂载的**宿主机路径**（如把 `../dev-redis` 改成 `../dev-redis2`），Compose 只按新路径起容器——**旧路径里的数据不会自动搬过去**，要保留得自己先把目录挪过去。
+- 若是命名卷（named volume）且没改，数据原样保留。
+- 停止时用 `--clean`（`win-stop.cmd` / `sh-stop.sh --clean` = `down -v`）会**删除数据卷**，⚠️ 持久数据清空，慎用。
+
+#### 停止 / 移除
+- 停止并移除全部：`bash script/sh-stop.sh` 或 Windows 下 `.\script\win-stop.cmd`；加 `--clean` 额外删数据卷。
+- 只停某个：`docker compose stop <服务名>`（保留容器）或 `docker compose down <服务名>`（移除容器，`down -v` 删卷）。
+- **移除一个容器**：反向操作——删掉根 `docker-compose.yml` 里对应的 `include` 行 + 删除 `compose/<name>.yaml`；若容器正在运行，先 `docker compose down <服务名>` 停掉，再清理对应的 `dev-xxx/` 数据目录。
+
+#### 新增一个容器
+1. 在 `compose/` 下新建 `<name>.yaml`，照搬现有文件写法：声明 `profiles: [<name>]`，挂载用 `../dev-xxx` 指向仓库根数据目录；
+2. 到根 `docker-compose.yml` 的 `include` 列表加一行 `compose/<name>.yaml`；
+3. 重跑启动器，即可看到新容器并勾选启动（启动器会自动从 `compose/*.yaml` 发现它）。
+
+### 原生命令（进阶 / 自动化）
+
+```bash
+# 启动指定服务：直接点名（推荐，Compose 会自动激活其同名 profile）
+docker compose up -d redis mysql
+# 等价写法：逐个开同名 profile（--profile 是全局 flag，必须放在 up 之前）
+docker compose --profile redis --profile mysql up -d
+
+# 查看状态 / 日志（注意：ps 受 profile 影响，裸 docker compose ps 只显示已激活的同名 profile 服务；
+# 想看全部运行态用 docker ps，或显式 docker compose ps <服务名>）
+docker ps
 docker compose logs -f kafka
 
-# 停止并移除
-docker compose down
-
-# 重建某个镜像（如 jrebel）
+# 重建本地构建镜像（如 jrebel）后再启动
 docker compose build jrebel && docker compose up -d jrebel
 ```
+
+> **服务名 = profile 名**：每个容器的 profile 就是它自己的服务名（`redis` / `mysql` / `elasticsearch8` …），可单独 `docker compose --profile <服务名> up -d` 起任意一个。
+> 例：`docker compose --profile elasticsearch8 up -d` 只起 ES 8；`docker compose --profile cloudbeaver --profile navidog up -d` 只起两个 MySQL 管理界面。
+> 注：早期版本里的「域 profile」（`core`/`search`/`messaging`/`dbgui`/`tools`）与伞形 `all` 已移除——批量启停交给交互式启动器负责。
 
 ---
 
@@ -283,13 +394,17 @@ docker compose build jrebel && docker compose up -d jrebel
 3. 在本目录下执行镜像导入脚本：
    ```bash
    # Windows（Git Bash / WSL）或 Linux / macOS 终端
-   bash script/load-images.sh
+   bash script/sh-load-images.sh
    ```
    脚本会遍历 `images/*.tar` 逐个 `docker load` 导入；
-4. 导入完成后直接启动：
+4. 导入完成后直接启动（全启，等价于 `.\script\win-start.cmd` 或 `node script/start.mjs`）：
    ```bash
-   docker compose up -d
+   docker compose --profile jrebel --profile redis --profile mysql --profile nginx \
+     --profile rabbitmq --profile minio --profile elasticsearch7 --profile elasticsearch8 \
+     --profile elasticsearch9 --profile kafka --profile kafka-ui --profile redisinsight \
+     --profile cloudbeaver --profile navidog --profile it-tools up -d
    ```
+   > 嫌长就直接用 `.\script\win-start.cmd`（或 `node script/start.mjs`，会自动拉起勾选的服务）；只想跑默认 6 件套就 `docker compose up -d jrebel redis mysql nginx rabbitmq minio`。
 
 > 若镜像有变动（升级版本 / 新增服务），重新执行 `docker save -o images/<name>-<tag>.tar <repo>:<tag>` 覆盖对应文件即可。
 
@@ -297,17 +412,17 @@ docker compose build jrebel && docker compose up -d jrebel
 
 ### 常用脚本（`script/`）
 
-本目录集中管理常用运维脚本（均为 Git Bash / WSL / Linux / macOS 可用的 bash 脚本；从 `script/` 内调用时会自动切到 `java-dev-env/` 根目录执行）：
+本目录集中管理常用运维脚本。启动器为**纯 Node（零依赖）**，Windows 下推荐用 `win-start.cmd` / `win-stop.cmd` 直接走 `node`，避开 PowerShell 里 `bash` 被路由到 WSL 的坑；Git Bash / Linux / macOS 可用 `sh-start.sh` / `sh-stop.sh` 包装器（内部同样调用 Node）。所有脚本从 `script/` 内调用时会自动切到 `java-dev-env/` 根目录执行：
 
 | 脚本 | 用途 |
 |------|------|
-| `script/start.sh` | 启动整套环境（`docker compose up -d`，可带服务名参数） |
-| `script/stop.sh` | 停止并移除容器（`docker compose down`） |
-| `script/status.sh` | 一键检查所有服务的容器状态与 HTTP 健康 |
-| `script/load-images.sh` | 离线恢复：把 `images/*.tar` 全部 `docker load` 导入 |
-| `script/save-images.sh` | 重新导出 compose 引用的全部镜像到 `images/`（升级版本后刷新离线包） |
+| `script/start.mjs` | ★ 启动器核心逻辑（纯 Node 零依赖，**不直接执行**，由下方包装器调用） |
+| `script/win-start.cmd` / `script/sh-start.sh` | 启动器包装：Windows 用 `win-start.cmd`，Linux/macOS/Git Bash 用 `sh-start.sh`；内部调用 `start.mjs`；也可 `node script/start.mjs redis mysql` 非交互直接启 |
+| `script/win-stop.cmd` / `script/sh-stop.sh` | 停止并移除【全部】容器（`docker compose down`，`--clean` 含数据卷） |
+| `script/sh-load-images.sh` | 离线恢复：把 `images/*.tar` 全部 `docker load` 导入 |
+| `script/sh-save-images.sh` | 重新导出 compose 引用的全部镜像到 `images/`（升级版本后刷新离线包） |
 
-> 新电脑离线部署推荐顺序：`script/load-images.sh` → `script/start.sh` → `script/status.sh` 验证。
+> 新电脑离线部署推荐顺序：`script/sh-load-images.sh` → `.\script\win-start.cmd`（勾选要用的容器）。
 
 ---
 
@@ -325,7 +440,7 @@ docker compose build jrebel && docker compose up -d jrebel
 
 ## 七、可补充的开发工具 / 平台建议
 
-当前栈已覆盖缓存、关系库、搜索引擎、消息队列、对象存储、反向代理、授权服务器、Kafka 可视化、Redis GUI、数据库管理与开发者工具箱。若想进一步贴近真实 Java / Spring Boot 微服务开发，还可考虑补充（按需加入 `compose/` 下对应模块文件，例如新的消息中间件放 `messaging.yml`）：
+当前栈已覆盖缓存、关系库、搜索引擎、消息队列、对象存储、反向代理、授权服务器、Kafka 可视化、Redis GUI、数据库管理与开发者工具箱。若想进一步贴近真实 Java / Spring Boot 微服务开发，还可考虑补充（在 `compose/` 下新增一个 `<name>.yaml` 并在根 `docker-compose.yml` 的 `include` 里加一行，例如新消息中间件加 `compose/<broker>.yaml`）：
 
 - **对象存储**：`minio/minio` ✅ 已加入（见第十节），开箱即用
 - **配置 / 注册中心**：`nacos/nacos`（阿里开源，配置管理 + 服务发现，国内 Spring Cloud Alibaba 标配）
@@ -342,7 +457,7 @@ docker compose build jrebel && docker compose up -d jrebel
 - **其它数据库**：`postgres:16`（PG）、`mongo:7`（文档库）、`clickhouse/clickhouse-server`（OLAP 分析）
 - **认证**：`quay.io/keycloak/keycloak`（统一身份 / SSO）
 
-> 引入新组件时，建议同样遵循「一个容器一个 `dev-` 目录」的约定，并在本 README 第二节 / 第三节同步登记。
+> 引入新组件时：在 `compose/` 下新增 `<name>.yaml`（声明 `profiles: [<name>]`），在根 `docker-compose.yml` 的 `include` 追加一行，并遵循「一个容器一个 `dev-` 目录」的约定，在本 README 第二节 / 第三节同步登记。
 
 ---
 

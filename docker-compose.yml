@@ -1,29 +1,45 @@
 # =============================================================================
 # java-dev-env 主编排文件
 # -----------------------------------------------------------------------------
-# 采用「模块化」组织：本文件只做编排，不内联任何服务定义。
-# 各业务模块拆分到 compose/ 下的独立文件，通过 include 引入。
-# 好处：改某个模块只需动对应文件，互不影响；可按需增删模块。
+# 采用「一个容器一个配置文件」的组织方式：compose/ 下每个 *.yaml 对应一个容器，
+# 本文件只做编排（include），不内联任何服务定义。
 #
-# 模块一览（compose/ 目录）：
-#   core.yml        核心基础设施：jrebel / redis / mysql / nginx / rabbitmq / minio
-#   search.yml      搜索引擎：elasticsearch 7 / 8 / 9
-#   messaging.yml   消息队列：kafka / kafka-ui
-#   database-gui.yml 数据库 GUI：cloudbeaver / navidog / redisinsight
-#   tools.yml       工具箱：it-tools
+# 好处：
+#   - 改某个容器只需动对应的 compose/<name>.yaml，互不影响；
+#   - 想新增 / 移除容器 = 增删一个文件 + 在下方 include 列表里加一行；
+#   - 启动时可「只引用部分、排除其余」：每个服务都声明了
+#       profiles: [<服务名>]
+#     默认不激活任何 profile 时什么都不启（裸 `docker compose up` 不会启动任何容器）；
+#     勾选哪些 = 启动器 `up -d <服务名>` 直接点名，Compose 会自动激活其同名 profile。
 #
-# 说明：
-#   - include 进来的文件里，相对路径（build 上下文、volume 挂载）都以该文件
-#     自身所在目录（compose/）为基准，故各模块内的 ./dev-xxx 都写成 ../dev-xxx。
-#   - 所有模块共享同一个项目名 java-dev-env，因此跨模块按服务名互访（同一默认网络）。
-#   - 启动方式不变：在仓库根目录 `bash script/start.sh` 即可拉起全部模块。
+# 路径约定（重要）：
+#   include 进来的文件里，相对路径（build 上下文、volume 挂载）都以该文件
+#   自身所在目录（compose/）为基准，故各文件里的 ./dev-xxx 都写成 ../dev-xxx，
+#   实际指向仓库根目录下的 dev-xxx/ 数据目录。
+#
+# 所有文件共享同一个项目名 java-dev-env，因此跨文件按服务名互访（同一默认网络）。
+#   例如 kafka-ui → kafka:9094、cloudbeaver → mysql。
+#
+# 启动方式：在仓库根目录运行交互式启动器 `bash script/start.sh`，
+#   勾选需要的容器 → 保存选择 → 自动按勾选的 profile 拉起；选择存到 .selection，
+#   下次进入自动回显。停止全部：`bash script/stop.sh`。
 # =============================================================================
 
 name: java-dev-env
 
 include:
-  - compose/core.yml
-  - compose/search.yml
-  - compose/messaging.yml
-  - compose/database-gui.yml
-  - compose/tools.yml
+  - compose/jrebel.yaml
+  - compose/redis.yaml
+  - compose/mysql.yaml
+  - compose/nginx.yaml
+  - compose/rabbitmq.yaml
+  - compose/minio.yaml
+  - compose/elasticsearch7.yaml
+  - compose/elasticsearch8.yaml
+  - compose/elasticsearch9.yaml
+  - compose/kafka.yaml
+  - compose/kafka-ui.yaml
+  - compose/redisinsight.yaml
+  - compose/cloudbeaver.yaml
+  - compose/navidog.yaml
+  - compose/it-tools.yaml

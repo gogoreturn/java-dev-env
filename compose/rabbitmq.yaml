@@ -1,0 +1,18 @@
+# RabbitMQ（带 management 管理界面）
+# 归属域：core
+services:
+  rabbitmq:
+    image: rabbitmq:management
+    container_name: dev-rabbitmq
+    profiles: [rabbitmq]
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=admin
+      - TZ=Asia/Shanghai
+    volumes:
+      - ../dev-rabbitmq/data:/var/lib/rabbitmq
+      - ../dev-rabbitmq/conf:/etc/rabbitmq
+    restart: always

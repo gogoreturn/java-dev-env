@@ -1,0 +1,20 @@
+# MySQL 9
+# 归属域：core
+services:
+  mysql:
+    image: mysql:9
+    container_name: dev-mysql
+    profiles: [mysql]
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ruoyi
+      MYSQL_DATABASE: dev_db
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ../dev-mysql/data:/var/lib/mysql
+      - ../dev-mysql/logs:/var/log/mysql
+    restart: always

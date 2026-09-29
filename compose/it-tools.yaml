@@ -1,0 +1,12 @@
+# it-tools（开发常用小工具集合，网页版）
+# 归属域：tools
+services:
+  it-tools:
+    image: "qingfeng2336/it-tools@sha256:1263d4d3b6d76afc6db32b57f78eb12567f5d0272e16f7f7b6c01c78e517bc5c"
+    restart: always
+    ports:
+      - "10081:80"
+    environment:
+      - TZ=Asia/Shanghai
+    container_name: it-tools-cn
+    profiles: [it-tools]

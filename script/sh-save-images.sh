@@ -5,7 +5,7 @@
 #   例：dbeaver/cloudbeaver:latest -> cloudbeaver-latest.tar；mysql:9 -> mysql-9.tar
 # 用法：
 #   cd java-dev-env
-#   bash script/save-images.sh
+#   bash script/sh-save-images.sh
 #
 set -euo pipefail
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -33,4 +33,4 @@ done
 
 echo
 echo "✅ 全部镜像已导出到 images/ 。把整个 java-dev-env 目录拷到新电脑后执行："
-echo "   bash script/load-images.sh"
+echo "   bash script/sh-load-images.sh"

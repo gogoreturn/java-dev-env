@@ -1,0 +1,17 @@
+# NaviDog（轻量 Web 端 MySQL 管理工具，Navicat 风格、中文原生；仅 MySQL）
+# 官方仅提供 npm 包，镜像在 ../dev-navidog 自建（上游硬编码监听 127.0.0.1，已在 Dockerfile 改为 HOST 可配）
+# 归属域：dbgui
+services:
+  navidog:
+    build:
+      context: ../dev-navidog
+    image: dev-navidog:latest
+    container_name: dev-navidog
+    profiles: [navidog]
+    ports:
+      - "3001:3001"
+    environment:
+      - TZ=Asia/Shanghai
+      - HOST=0.0.0.0
+      - PORT=3001
+    restart: always

@@ -1,0 +1,12 @@
+# RedisInsight（Redis GUI 可视化管理）
+# 归属域：dbgui
+services:
+  redisinsight:
+    image: redis/redisinsight@sha256:b5e19ee240abef6edb435871b90ff8a210995422e8e018ab61c0339d318a1f84
+    container_name: dev-redisinsight
+    profiles: [redisinsight]
+    ports:
+      - "5540:5540"
+    environment:
+      - TZ=Asia/Shanghai
+    restart: always

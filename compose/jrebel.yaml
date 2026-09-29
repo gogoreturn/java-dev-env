@@ -1,0 +1,12 @@
+# 自定义 JRebel License Server（构建上下文在 ../dev-jrebel）
+# 归属域：core
+services:
+  jrebel:
+    build:
+      context: ../dev-jrebel
+    image: dev-jrebel:latest
+    container_name: dev-jrebelServer
+    profiles: [jrebel]
+    ports:
+      - "10082:8081"
+    restart: always
