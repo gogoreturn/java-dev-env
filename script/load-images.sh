@@ -28,7 +28,8 @@ fi
 echo "准备导入 ${#tars[@]} 个镜像..."
 for f in "${tars[@]}"; do
   echo ">>> 导入：$(basename "$f")"
-  docker load -i "$f"
+  f_win="$(cygpath -w "$f" 2>/dev/null || echo "$f")"
+  docker load -i "$f_win"
 done
 
 echo

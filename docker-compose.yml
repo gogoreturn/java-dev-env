@@ -13,7 +13,7 @@ services:
 
   # 2. Redis 7
   redis:
-    image: redis:latest
+    image: redis:8.10.1
     container_name: dev-redis
     ports:
       - "6379:6379"
@@ -138,7 +138,7 @@ services:
 
   # 7. Nginx
   nginx:
-    image: nginx:latest
+    image: nginx:1.31.4
     container_name: dev-nginx
     ports:
       - "80:80"
@@ -152,7 +152,7 @@ services:
     restart: always
 
   it-tools:
-    image: "qingfeng2336/it-tools:latest"
+    image: "qingfeng2336/it-tools@sha256:1263d4d3b6d76afc6db32b57f78eb12567f5d0272e16f7f7b6c01c78e517bc5c"
     restart: always
     ports:
       - "10081:80"
@@ -200,7 +200,7 @@ services:
 
   # 10. Kafka UI（Kafka 可视化管理，连接 compose 内 kafka 的 INTERNAL 监听器 kafka:9094）
   kafka-ui:
-    image: provectuslabs/kafka-ui:latest
+    image: provectuslabs/kafka-ui:v0.7.2
     container_name: dev-kafka-ui
     ports:
       - "10083:8080"
@@ -212,7 +212,7 @@ services:
 
   # 11. MinIO 对象存储（S3 兼容）
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
     container_name: dev-minio
     ports:
       - "9000:9000"   # S3 API
@@ -228,7 +228,7 @@ services:
 
   # 12. RedisInsight（Redis GUI 可视化管理）
   redisinsight:
-    image: redis/redisinsight:latest
+    image: redis/redisinsight@sha256:b5e19ee240abef6edb435871b90ff8a210995422e8e018ab61c0339d318a1f84
     container_name: dev-redisinsight
     ports:
       - "5540:5540"
@@ -238,7 +238,7 @@ services:
 
   # 13. CloudBeaver（DBeaver 网页版，现代 UI、中文友好，支持 MySQL / PostgreSQL / SQLite / MariaDB 等多库）
   cloudbeaver:
-    image: dbeaver/cloudbeaver:latest
+    image: dbeaver/cloudbeaver:24.04
     container_name: dev-cloudbeaver
     ports:
       - "8978:8978"

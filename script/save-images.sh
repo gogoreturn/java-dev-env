@@ -27,7 +27,8 @@ for img in "${IMAGES[@]}"; do
   safe="${base//:/-}"                # ':' -> '-'（Windows 文件名友好）
   out="$IMAGE_DIR/${safe}.tar"
   echo ">>> 导出：$img  ->  $(basename "$out")"
-  docker save -o "$out" "$img"
+  out_win="$(cygpath -w "$out" 2>/dev/null || echo "$out")"
+  docker save -o "$out_win" "$img"
 done
 
 echo
