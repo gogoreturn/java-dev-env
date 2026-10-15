@@ -9,4 +9,7 @@ services:
       - "5540:5540"
     environment:
       - TZ=Asia/Shanghai
+    volumes:
+      # RedisInsight 已保存的连接 / 设置都在容器 /data 内；挂出后可跨重启与镜像重建保留
+      - ../dev-redisinsight/data:/data
     restart: always

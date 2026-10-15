@@ -12,6 +12,8 @@
 //
 // 启动逻辑：docker compose up -d <勾选的服务名>
 //   （每个服务都挂了同名 profile，但 compose 中显式点名服务即可绕过 profile 管控）
+// 勾选即最终状态：启动勾选的服务后，会一并「移除」本项目下正在运行、但本次
+//   未勾选的容器（基于 docker label 过滤，不影响其它 compose 项目的容器）。
 // =============================================================================
 
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
@@ -23,6 +25,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const COMPOSE_DIR = resolve(ROOT, "compose");
 const SEL_FILE = resolve(ROOT, ".selection");
+
+// ---- 项目名（用于精确过滤「本项目」容器，避免误伤其它 compose 项目） ----------
+function resolveProjectName() {
+  try {
+    const txt = readFileSync(resolve(ROOT, "docker-compose.yml"), "utf8");
+    const m = /^\s*name:\s*([^\s#]+)/m.exec(txt);
+    if (m) return m[1];
+  } catch {}
+  return "java-dev-env";
+}
+const PROJECT_NAME = resolveProjectName();
 
 // ---- 元数据：美化展示用（新增容器若不在下表，自动回退为服务名） -----------------
 const DOMAIN_ORDER = ["dbcache", "object", "search", "messaging", "gateway", "gui", "tools"];
@@ -43,6 +56,7 @@ const META = {
   elasticsearch7: { label: "Elasticsearch 7", desc: "搜索引擎", domain: "search" },
   elasticsearch8: { label: "Elasticsearch 8", desc: "搜索引擎", domain: "search" },
   elasticsearch9: { label: "Elasticsearch 9", desc: "搜索引擎", domain: "search" },
+  qdrant: { label: "Qdrant", desc: "向量数据库 (RAG/AI 检索)", domain: "search" },
   rabbitmq: { label: "RabbitMQ", desc: "消息队列", domain: "messaging" },
   kafka: { label: "Kafka", desc: "消息队列 / 流处理", domain: "messaging" },
   "kafka-ui": { label: "Kafka UI", desc: "Kafka 可视化", domain: "messaging" },
@@ -115,6 +129,36 @@ const c = {
   blue: "\x1b[34m",
 };
 
+// ---- 勾选即最终状态：停掉并移除「本项目下正在运行、但本次未勾选」的容器 --------
+// 用 docker 原生 label 过滤项目，绕开 compose profile 导致 `compose ps` 返回空的坑。
+function pruneUnselected(chosen, dryRun) {
+  const r = spawnSync(
+    "docker",
+    [
+      "ps",
+      "--filter", `label=com.docker.compose.project=${PROJECT_NAME}`,
+      "--filter", "status=running",
+      "--format", "{{.ID}} {{.Label \"com.docker.compose.service\"}}",
+    ],
+    { cwd: ROOT, encoding: "utf8" }
+  );
+  if (r.status !== 0) return;
+  const ids = [];
+  for (const line of r.stdout.split(/\r?\n/)) {
+    const m = /^(\S+)\s+(\S+)$/.exec(line.trim());
+    if (m && !chosen.includes(m[2])) ids.push(m[1]);
+  }
+  if (!ids.length) return;
+  if (dryRun) {
+    console.log(
+      `${c.dim}（dry-run）将移除未勾选的运行中容器：${ids.join(" ")}${c.reset}`
+    );
+    return;
+  }
+  console.log(`${c.cyan}▶ 移除未勾选的运行中容器...${c.reset}`);
+  spawnSync("docker", ["rm", "-f", ...ids], { cwd: ROOT, stdio: "inherit" });
+}
+
 // ---- 非交互模式 -------------------------------------------------------------
 function runNonInteractive(selected, dryRun) {
   const all = discoverServices();
@@ -132,6 +176,7 @@ function runNonInteractive(selected, dryRun) {
   console.log(`${c.cyan}▶ 已保存选择 → ${c.reset}${valid.join(", ")}`);
   if (dryRun) {
     console.log(`${c.dim}（dry-run）将执行：${cmd}${c.reset}`);
+    pruneUnselected(valid, true);
     return;
   }
   console.log(`${c.cyan}▶ 执行：${c.reset}${cmd}\n`);
@@ -139,6 +184,7 @@ function runNonInteractive(selected, dryRun) {
     cwd: ROOT,
     stdio: "inherit",
   });
+  pruneUnselected(valid, false);
   process.exit(r.status ?? 0);
 }
 
@@ -214,12 +260,13 @@ function interactive() {
     const cmd = `docker compose up -d ${chosen.join(" ")}`;
     console.log(`${c.cyan}▶ 已保存选择 → ${c.reset}${chosen.join(", ")}`);
     console.log(`${c.cyan}▶ 执行：${c.reset}${cmd}\n`);
-    const r = spawnSync("docker", ["compose", "up", "-d", ...chosen], {
-      cwd: ROOT,
-      stdio: "inherit",
-    });
-    process.exit(r.status ?? 0);
-  }
+  const r = spawnSync("docker", ["compose", "up", "-d", ...chosen], {
+    cwd: ROOT,
+    stdio: "inherit",
+  });
+  pruneUnselected(chosen, false);
+  process.exit(r.status ?? 0);
+}
 
   function cleanup() {
     stdin.setRawMode(false);

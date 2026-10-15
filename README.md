@@ -27,6 +27,7 @@ java-dev-env/
 │   ├── cloudbeaver.yaml           #   CloudBeaver（多库 + 中文）
 │   ├── navidog.yaml               #   NaviDog（MySQL 管理，本地构建）
 │   ├── redisinsight.yaml          #   RedisInsight
+│   ├── qdrant.yaml                #   Qdrant 向量数据库
 │   └── it-tools.yaml              #   it-tools 工具箱
 ├── images/                        # 离线镜像（docker save 产物，见第五节）
 ├── script/                        # 常用运维脚本（见下方「常用脚本」）
@@ -49,12 +50,13 @@ java-dev-env/
 ├── dev-rabbitmq/     { data, conf }
 ├── dev-kafka/        { data }
 ├── dev-navidog/      { Dockerfile }    # NaviDog 镜像构建上下文（本地构建）
+├── dev-qdrant/       { storage, config, snapshots }   # Qdrant 向量数据库
 └── dev-minio/        { data }          # MinIO 对象存储（S3 兼容）
 ```
 
-> **编排方式（一个容器一个文件）**：根 `docker-compose.yml` 只做编排，通过 `include` 引入 `compose/` 下 15 个容器文件。每个文件对应一个容器，可独立编辑、按需增删；所有文件共享项目名 `java-dev-env` 与同一默认网络，因此跨文件按服务名互访（例如 `kafka-ui` → `kafka:9094`、`cloudbeaver` → `mysql`）。每个服务只声明 `profiles: [<服务名>]`——默认不激活任何 profile 时什么都不启（裸 `docker compose up` 不会启动任何容器），「引用 / 排除」某个容器 = 启动时勾选 / 不勾选它。交互式启动器在仓库根目录执行 `node script/start.mjs`（或 Windows 下 `.\script\win-start.cmd`），勾选需要的容器即可；启动器用 `docker compose up -d <服务名>` 直接点名，Compose 会自动激活其同名 profile（选择存 `.selection` 并回显）。
+> **编排方式（一个容器一个文件）**：根 `docker-compose.yml` 只做编排，通过 `include` 引入 `compose/` 下 16 个容器文件。每个文件对应一个容器，可独立编辑、按需增删；所有文件共享项目名 `java-dev-env` 与同一默认网络，因此跨文件按服务名互访（例如 `kafka-ui` → `kafka:9094`、`cloudbeaver` → `mysql`）。每个服务只声明 `profiles: [<服务名>]`——默认不激活任何 profile 时什么都不启（裸 `docker compose up` 不会启动任何容器），「引用 / 排除」某个容器 = 启动时勾选 / 不勾选它。交互式启动器在仓库根目录执行 `node script/start.mjs`（或 Windows 下 `.\script\win-start.cmd`），勾选需要的容器即可；启动器用 `docker compose up -d <服务名>` 直接点名，Compose 会自动激活其同名 profile（选择存 `.selection` 并回显）。
 
-> `it-tools`、`kafka-ui`、`redisinsight`、`cloudbeaver`、`navidog` 为纯前端 / 无状态工具，无持久数据，不建独立目录。
+> `it-tools`、`kafka-ui`、`navidog` 为纯前端 / 无状态工具，无持久数据，不建独立目录；`redisinsight` 与 `cloudbeaver` 已挂出数据目录持久化连接配置（见第十一 / 十二节），`navidog` 的连接信息存浏览器 `localStorage`（容器内挂卷无效）。
 
 ---
 
@@ -79,6 +81,7 @@ java-dev-env/
 | 可视化管理 | navidog | dev-navidog | dev-navidog:latest（本地构建） | 3001 | MySQL 管理 Web（Navicat 风格，中文原生） |
 | 开发工具 | jrebel | dev-jrebelServer | 本地构建（见 `dev-jrebel/Dockerfile`） | 10082 → 8081 | JRebel 授权服务器 |
 | 开发工具 | it-tools | it-tools-cn | qingfeng2336/it-tools@sha256:1263d4d3b6d76afc6db32b57f78eb12567f5d0272e16f7f7b6c01c78e517bc5c | 10081 → 80 | 前端开发者工具箱 |
+| 向量数据库 | qdrant | dev-qdrant | qdrant/qdrant:v1.19.0 | 6333 / 6334 | 向量数据库（RAG/AI 语义检索，REST + gRPC） |
 
 ---
 
@@ -214,19 +217,19 @@ java-dev-env/
 ### 11. RedisInsight（`redisinsight`）
 - **镜像**：`redis/redisinsight@sha256:b5e19ee240abef6edb435871b90ff8a210995422e8e018ab61c0339d318a1f84`
 - **端口**：`5540`（宿主机）→ `5540`（容器）
-- **数据**：无状态（不建独立目录）
+- **数据持久化**：`./dev-redisinsight/data` → `/data`（RedisInsight 的已保存连接、设置均在此目录；挂出后可跨容器重启 / 镜像重建保留，**不再每次丢失连接信息**）
 - **用途**：Redis 可视化管理（键值浏览、内存分析、慢查询等）
 - **连接 Redis**：在 UI 中添加连接，主机填 `redis`、端口 `6379`、密码 `123456`（同 compose 网络内用服务名 `redis` 即可访问）
 - **访问**：`http://localhost:5540`
 
 ### 12. 数据库管理（CloudBeaver + NaviDog）
 
-两套数据库管理 Web 工具并存，按需选用（均通过浏览器访问，无状态）：
+两套数据库管理 Web 工具并存，按需选用：
 
 #### 12a. CloudBeaver（`cloudbeaver`）
 - **镜像**：`dbeaver/cloudbeaver:24.04`
 - **端口**：`8978`（宿主机）→ `8978`（容器）
-- **数据**：无状态（不建独立目录）
+- **数据持久化**：`./dev-cloudbeaver/data` → `/opt/cloudbeaver/workspace`（连接配置、会话在此目录；挂出后可跨重启保留）
 - **用途**：DBeaver 网页版，现代 IDE 式 UI、内置简体中文（跟随浏览器语言），支持 **MySQL / PostgreSQL / SQLite / MariaDB** 等多库
 - **连接 MySQL**：新增连接时选 `MySQL`，主机填 `mysql`、端口 `3306`、用户 `root`、密码 `ruoyi`、库 `dev_db`（同 compose 网络内用服务名 `mysql` 访问）
 - **访问**：`http://localhost:8978`
@@ -234,10 +237,26 @@ java-dev-env/
 #### 12b. NaviDog（`navidog`，本地构建）
 - **镜像**：`dev-navidog:latest`（由 `dev-navidog/Dockerfile` 本地构建；上游 npm 包硬编码监听 `127.0.0.1`，已在 Dockerfile 内改为 `HOST` 可配，默认 `0.0.0.0`）
 - **端口**：`3001`（宿主机）→ `3001`（容器）
-- **数据**：无状态（不建独立目录）
+- **数据**：**连接信息存浏览器 `localStorage`**（官方明确：连接密码在浏览器端，不在容器内）。因此容器挂卷无法持久化连接——**不要用无痕模式、不要清浏览器数据**，同一浏览器下容器重启不会丢连接；若要换浏览器/清缓存，先在 UI 里「导出连接」（支持 Navicat `.ncx`）备份。
 - **用途**：轻量 Web 端 MySQL 管理工具，Navicat 风格、中文原生，功能含 SQL 编辑器、表格内增删改、CSV/Excel/JSON/SQL 导入导出、表结构设计、索引/外键；**仅支持 MySQL**
 - **连接 MySQL**：工具栏「连接」→ 主机 `mysql`、端口 `3306`、用户 `root`、密码 `ruoyi`（同 compose 网络内用服务名 `mysql` 访问）
 - **访问**：`http://localhost:3001`
+
+### 13. Qdrant 向量数据库（`dev-qdrant`）
+
+- **镜像**：`qdrant/qdrant:v1.19.0`（离线环境请改用本地 `images/` 下已 load 的镜像 tag，并保持与 `compose/qdrant.yaml` 中一致）
+- **端口**：
+  - `6333` — REST API（浏览器 / HTTP 客户端 / 多数 Web 框架默认走这里）
+  - `6334` — gRPC API（官方 Python / Java / Go SDK 默认 `prefer_grpc=True` 走这里，**两个端口都要暴露**，否则 SDK 会静默连不上）
+- **目录映射（可挂载项已全部挂出）**：
+  - `./dev-qdrant/storage` → `/qdrant/storage`（所有集合、向量、payload 的持久化数据）
+  - `./dev-qdrant/config` → `/qdrant/config`（配置文件 `config.yaml`，已提交在仓库，直接用其启动）
+  - `./dev-qdrant/snapshots` → `/qdrant/snapshots`（快照导出目录，便于备份 / 迁移）
+- **配置**：`dev-qdrant/config/config.yaml` 已显式设置 `service.host=0.0.0.0`、REST `6333`、gRPC `6334`、`storage_path=/qdrant/storage`、`snapshots_path=/qdrant/snapshots`
+- **鉴权**：默认**不启用 API Key**（与本项目其他开发中间件一致，仅本机 / 内网使用）；如需对外暴露，在 `compose/qdrant.yaml` 加 `environment: QDRANT__SERVICE__API_KEY=xxx` 即可开启
+- **健康检查**：`curl http://localhost:6333/healthz` → `{"status":"ok"}`
+- **快速验证**：`curl -X PUT http://localhost:6333/collections/test -H 'Content-Type: application/json' -d '{"vectors":{"size":4,"distance":"Cosine"}}'`
+- **跨容器访问**：同 compose 网络内用服务名 `qdrant` 直连（如 `http://qdrant:6333`），供后端 Spring Boot / Python 服务对接
 
 ---
 

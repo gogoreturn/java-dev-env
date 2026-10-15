@@ -1,0 +1,14 @@
+# Qdrant 运行配置（挂载到容器内 /qdrant/config/config.yaml）
+# 仅显式声明与开发环境相关的关键项，其余沿用官方镜像默认值。
+service:
+  host: 0.0.0.0
+  port: 6333      # REST API
+  grpc_port: 6334 # gRPC API（与 compose 端口映射一致）
+
+storage:
+  storage_path: /qdrant/storage   # 对应挂载的 ../dev-qdrant/storage
+
+snapshots:
+  snapshots_path: /qdrant/snapshots   # 对应挂载的 ../dev-qdrant/snapshots
+
+log_level: INFO

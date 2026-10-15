@@ -1,0 +1,18 @@
+# Qdrant 向量数据库（RAG / AI 语义检索）
+# 归属域：search
+# 配置已提交在仓库 dev-qdrant/config/config.yaml（挂载到 /qdrant/config）。
+# 可挂载的三个目录均已挂出：storage（数据）/ config（配置）/ snapshots（快照）。
+services:
+  qdrant:
+    # 离线环境请将 tag 改为你已 load 的镜像版本（与 images/qdrant-*.tar 对应）。
+    image: qdrant/qdrant:v1.19
+    container_name: dev-qdrant
+    profiles: [qdrant]
+    ports:
+      - "6333:6333"   # REST API（浏览器 / HTTP 客户端 / 多数 Web 框架默认走这里）
+      - "6334:6334"   # gRPC API（官方 Python / Java / Go SDK 默认走 gRPC，必须一起暴露）
+    volumes:
+      - ../dev-qdrant/storage:/qdrant/storage
+      - ../dev-qdrant/config:/qdrant/config
+      - ../dev-qdrant/snapshots:/qdrant/snapshots
+    restart: always

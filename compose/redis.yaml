@@ -12,6 +12,5 @@ services:
     volumes:
       - ../dev-redis/data:/data
       - ../dev-redis/conf:/usr/local/etc/redis
-      - ../dev-redis/logs:/var/log/redis
     command: redis-server /usr/local/etc/redis/redis.conf
     restart: always

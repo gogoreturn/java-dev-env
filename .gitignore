@@ -20,6 +20,12 @@ dev-nginx/logs/
 dev-rabbitmq/data/
 dev-redis/data/
 dev-redis/logs/
+dev-redisinsight/data/
+dev-redisinsight/logs/
+dev-cloudbeaver/data/
+dev-cloudbeaver/logs/
+dev-qdrant/storage/
+dev-qdrant/snapshots/
 
 软件包/
 

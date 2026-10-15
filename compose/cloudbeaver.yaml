@@ -9,4 +9,7 @@ services:
       - "8978:8978"
     environment:
       - TZ=Asia/Shanghai
+    volumes:
+      # CloudBeaver 的连接 / 设置都在容器 /opt/cloudbeaver/workspace 内；挂出后可跨重启与镜像重建保留
+      - ../dev-cloudbeaver/data:/opt/cloudbeaver/workspace
     restart: always
