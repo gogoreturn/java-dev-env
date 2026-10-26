@@ -66,6 +66,7 @@ const META = {
   navidog: { label: "NaviDog", desc: "MySQL 可视化管理", domain: "gui" },
   jrebel: { label: "JRebel 授权服务器", desc: "Java 热部署授权", domain: "tools" },
   "it-tools": { label: "IT-Tools", desc: "开发常用小工具箱", domain: "tools" },
+  kkfileview: { label: "kkFileView", desc: "文件在线预览 (Office/PDF/图片) · wangbowen/kkfileview:5.1.0", domain: "tools" },
 };
 const CORE_DEFAULT = ["jrebel", "redis", "mysql", "nginx", "rabbitmq", "minio"];
 

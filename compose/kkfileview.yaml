@@ -1,0 +1,43 @@
+# kkFileView（文件在线预览，支持 Office / PDF / 图片 / 文本 / 多媒体等）
+# 归属域：tools
+#
+# 镜像说明：wangbowen/kkfileview:5.1.0（社区镜像，内部为 kkFileView 5.0.0 构建），容器默认端口 8012。
+# 配置项几乎全部支持环境变量覆盖（形如 KK_xxx，见镜像内 /opt/kkFileView-5.0.0/config/application.properties），
+# 因此本配置不挂载版本相关的内部路径（/opt/kkFileView-5.0.0 会随镜像版本变化），
+# 只把「预览转换后的缓存」挂到版本无关的 /data/file，避免镜像升级后挂载失效。
+#
+# 字体（/usr/share/fonts）单独外挂：挂载集含 33 个中文字体（文泉驿 / 幼圆 / 方正等，已从官方 v4.1.0 镜像 docker cp 拷出并提交仓库）；
+# 该镜像本身仅内置 5 个中文字体，外挂后可显著改善中文渲染。挂回容器后字体可持久化、
+# 可在宿主机直接增删字体（如补宋体 / 微软雅黑让 Office 文档预览更逼真），且不受镜像版本路径影响。
+services:
+  kkfileview:
+    image: wangbowen/kkfileview:5.1.0
+    container_name: dev-kkfileview
+    profiles: [kkfileview]
+    # 宿主机端口 28012：避开了常见服务段（1-1024 知名端口 / 3000-9999 应用段），且回文映射 8012 便于记忆；
+    # 容器内部固定 8012（KK_SERVER_PORT 默认），不改。
+    ports:
+      - "28012:8012"
+    environment:
+      - TZ=Asia/Shanghai
+      # 预览转换产物（已转好的文件）落盘目录；挂出后跨容器重启 / 镜像重建保留，重复预览更快
+      - KK_FILE_DIR=/data/file
+      # 将应用整体挂到 /preview 上下文路径下：kkFileView 用 getContextPath() 构建所有 URL，
+      # 设此后 /onlinePreview、/static、/getCorsFile 等全部自动带 /preview 前缀，
+      # 这样由 dev-nginx 的 location /preview/ 整段反代时，预览页的静态资源与 Ajax 请求
+      # 也都会落在 /preview/ 之下而不会掉到 nginx 根路径导致 404。
+      - KK_BASE_URL=/preview   # 与 Nginx 代理路径一致
+      - KK_BASE_URL=http://localhost/preview
+      - KK_CONTEXT_PATH=/preview
+      # prod：KK_TRUST_HOST：必须精确列举你的业务系统访问文件源的主机名或 IP，严禁使用 *。这是防止 SSRF 攻击的第一道防线。
+      - KK_TRUST_HOST=*          # 仅限本地！允许任意来源，扫清调试障碍
+      - KK_NOT_TRUST_HOST=       # 不设置 KK_NOT_TRUST_HOST，或显式设为空值
+      - JAVA_OPTS=-Xms512m -Xmx1024m
+
+    extra_hosts:
+      - "localhost:host-gateway"   # 将容器内的 localhost 指向宿主机网关
+    volumes:
+      - ../dev-kkfileview/file:/data/file
+      # 字体目录：镜像内自带字体已拷到 ../dev-kkfileview/fonts，挂回后可持久化与自定义增删
+      - ../dev-kkfileview/fonts:/usr/share/fonts
+    restart: always

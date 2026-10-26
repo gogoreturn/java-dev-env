@@ -28,7 +28,8 @@ java-dev-env/
 │   ├── navidog.yaml               #   NaviDog（MySQL 管理，本地构建）
 │   ├── redisinsight.yaml          #   RedisInsight
 │   ├── qdrant.yaml                #   Qdrant 向量数据库
-│   └── it-tools.yaml              #   it-tools 工具箱
+│   ├── it-tools.yaml              #   it-tools 工具箱
+│   └── kkfileview.yaml            #   kkFileView（文件在线预览）
 ├── images/                        # 离线镜像（docker save 产物，见第五节）
 ├── script/                        # 常用运维脚本（见下方「常用脚本」）
 │   ├── start.mjs                  # ★ 启动器核心逻辑（纯 Node 零依赖，不直接执行）
@@ -51,6 +52,7 @@ java-dev-env/
 ├── dev-kafka/        { data }
 ├── dev-navidog/      { Dockerfile }    # NaviDog 镜像构建上下文（本地构建）
 ├── dev-qdrant/       { storage, config, snapshots }   # Qdrant 向量数据库
+├── dev-kkfileview/   { file, fonts }   # kkFileView 文件在线预览（转换缓存 + 字体落盘）
 └── dev-minio/        { data }          # MinIO 对象存储（S3 兼容）
 ```
 
@@ -81,6 +83,7 @@ java-dev-env/
 | 可视化管理 | navidog | dev-navidog | dev-navidog:latest（本地构建） | 3001 | MySQL 管理 Web（Navicat 风格，中文原生） |
 | 开发工具 | jrebel | dev-jrebelServer | 本地构建（见 `dev-jrebel/Dockerfile`） | 10082 → 8081 | JRebel 授权服务器 |
 | 开发工具 | it-tools | it-tools-cn | qingfeng2336/it-tools@sha256:1263d4d3b6d76afc6db32b57f78eb12567f5d0272e16f7f7b6c01c78e517bc5c | 10081 → 80 | 前端开发者工具箱 |
+| 开发工具 | kkfileview | dev-kkfileview | wangbowen/kkfileview:5.1.0 | 28012 → 8012 | 文件在线预览（Office / PDF / 图片 / 文本 / 多媒体） |
 | 向量数据库 | qdrant | dev-qdrant | qdrant/qdrant:v1.19.0 | 6333 / 6334 | 向量数据库（RAG/AI 语义检索，REST + gRPC） |
 
 ---
@@ -258,6 +261,21 @@ java-dev-env/
 - **快速验证**：`curl -X PUT http://localhost:6333/collections/test -H 'Content-Type: application/json' -d '{"vectors":{"size":4,"distance":"Cosine"}}'`
 - **跨容器访问**：同 compose 网络内用服务名 `qdrant` 直连（如 `http://qdrant:6333`），供后端 Spring Boot / Python 服务对接
 
+### 14. kkFileView 文件在线预览（`dev-kkfileview`）
+
+- **镜像**：`wangbowen/kkfileview:5.1.0`（社区镜像，内部为 kkFileView 5.0.0 构建）
+- **端口**：`28012`（宿主机）→ `8012`（容器，KK_SERVER_PORT 默认固定）
+- **目录映射**：
+  - `./dev-kkfileview/file` → `/data/file`（预览转换产物的缓存目录；挂出后跨容器重启 / 镜像重建保留，重复预览无需重新转换）
+  - `./dev-kkfileview/fonts` → `/usr/share/fonts`（字体目录；挂载集含 33 个中文字体，已从官方 v4.1.0 镜像 `docker cp` 拷出并提交仓库；该镜像本身仅内置 5 个中文字体，外挂后可显著改善中文渲染。挂回后可持久化，也可在宿主机直接增删字体以优化预览渲染，且不受镜像版本路径影响）
+- **说明**：基于 LibreOffice 的通用文件预览服务，支持 Office（Word/Excel/PPT）、PDF、图片、文本、多媒体等在线预览，可向业务系统提供 `http://<host>:<port>/onlinePreview?url=<文件URL>` 形式的预览入口。
+- **配置覆盖**：镜像内配置（`/opt/kkFileView-5.0.0/config/application.properties`）几乎全部支持环境变量覆盖（形如 `KK_xxx`，如 `KK_SERVER_PORT` / `KK_FILE_DIR` / `KK_BASE_URL` / `KK_TRUST_HOST` 等）。本配置**不挂载版本相关的内部路径**（镜像升级后 `/opt/kkFileView-x.y.z` 会变化，挂载易失效），仅把缓存目录落到版本无关的 `/data/file`。如需深度定制，在 `compose/kkfileview.yaml` 的 `environment` 里追加 `KK_*` 变量即可，无需改挂载。
+- **预览缓存清理**：缓存默认由 Quartz 定时任务在每日凌晨 3 点自动清理（`cache.clean.enabled=true`），亦可手动 `rm -rf dev-kkfileview/file/*`。
+- **访问（启用后）**：`http://localhost:28012/preview`（已设 `SERVER_SERVLET_CONTEXT_PATH=/preview`，应用整体挂在 `/preview` 上下文下；根路径 `/` 不再直接可用）
+- **nginx 反向代理**：`http://localhost/preview/` → kkFileView（`dev-nginx` 的 `conf.d/default.conf` 已配置 `location /preview/`，整段透传到 `kkfileview:8012/preview/`；预览页静态资源与 Ajax 均走相对路径，随 context-path 自动落在 `/preview/` 下，可完整渲染）
+- **⚠️ 调用方式（v5 易踩坑）**：`/onlinePreview?url=` 的 `url` 参数**必须 base64 编码**（服务端在无 `encryption` 参数时会把 `url` 当作 base64 解码；若传原始 `http://...` 链接，解码失败会被判为「不受信任的站点 / UNKNOWN」返回 403）。即业务侧应传 `url=<Base64(文件地址)>`；若用 AES 则带 `encryption=aes`。本地调试已设 `KK_TRUST_HOST=*` + `KK_NOT_TRUST_HOST=` 放行全部来源（仅限本地，生产请改为具体域名白名单）。
+- **跨容器访问**：同 compose 网络内用服务名 `kkfileview` 直连（如 `http://kkfileview:8012/preview`），供后端服务拼接预览链接。
+
 ---
 
 ## 四、常用操作（勾选需要的容器启动）
@@ -405,6 +423,7 @@ docker compose build jrebel && docker compose up -d jrebel
 | redisinsight@sha256-b5e19ee240abef6edb435871b90ff8a210995422e8e018ab61c0339d318a1f84.tar | redis/redisinsight@sha256:b5e19…（digest 锁版） |
 | cloudbeaver-24.04.tar | dbeaver/cloudbeaver:24.04 |
 | dev-navidog-latest.tar | dev-navidog:latest（本地构建） |
+| kkfileview-5.1.0.tar | wangbowen/kkfileview:5.1.0 |
 
 **新电脑恢复步骤**：
 
@@ -480,4 +499,4 @@ docker compose build jrebel && docker compose up -d jrebel
 
 ---
 
-*最后更新：2026-09-29*
+*最后更新：2026-10-23*
