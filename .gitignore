@@ -26,6 +26,9 @@ dev-cloudbeaver/data/
 dev-cloudbeaver/logs/
 dev-qdrant/storage/
 dev-qdrant/snapshots/
+# kkFileView 预览转换缓存（运行时数据，KK_FILE_DIR 挂载），不进版本库
+# 注意：dev-kkfileview/fonts/ 是从镜像拷出的静态字体资源，需保留进 git（克隆即成中文）
+dev-kkfileview/file/
 
 软件包/
 
