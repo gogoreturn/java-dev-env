@@ -35,7 +35,7 @@ services:
       - JAVA_OPTS=-Xms512m -Xmx1024m
 
     extra_hosts:
-      - "localhost:host-gateway"   # 将容器内的 localhost 指向宿主机网关
+      - "host.docker.internal:host-gateway"
     volumes:
       - ../dev-kkfileview/file:/data/file
       # 字体目录：镜像内自带字体已拷到 ../dev-kkfileview/fonts，挂回后可持久化与自定义增删
