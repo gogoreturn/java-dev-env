@@ -5,7 +5,7 @@
 services:
   qdrant:
     # 离线环境请将 tag 改为你已 load 的镜像版本（与 images/qdrant-*.tar 对应）。
-    image: qdrant/qdrant:v1.19
+    image: qdrant/qdrant:v1.20.0
     container_name: dev-qdrant
     profiles: [qdrant]
     ports:
